@@ -1,0 +1,6 @@
+.idea*
+*.env
+*pycache*
+venv
+docker_compose/*
+elastic*
