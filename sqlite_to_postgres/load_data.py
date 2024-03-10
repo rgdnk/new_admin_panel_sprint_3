@@ -1,4 +1,5 @@
 # Standard Library
+import logging
 import os
 import sqlite3
 from pathlib import Path
@@ -16,11 +17,42 @@ from postgres_dataclasses import (
 from postgres_saver import PGSaver
 from psycopg2.extensions import connection as _connection
 from psycopg2.extras import NamedTupleCursor
+from pydantic import Field
+from pydantic_settings import (
+    BaseSettings,
+    SettingsConfigDict,
+)
 from sqlite_extractor import SQLiteExtractor
 
 
-dotenv_path = Path(__file__).resolve().parent.parent / "db.env"
-load_dotenv(dotenv_path)
+class PostgresConnectParameters(BaseSettings):
+    dbname: str = Field(alias="POSTGRES_DB")
+    user: str = Field(alias="POSTGRES_USER")
+    password: str = Field(alias="POSTGRES_PASSWORD")
+    host: str = Field(alias="POSTGRES_HOST")
+    port: int = Field(alias="POSTGRES_PORT")
+
+    model_config = SettingsConfigDict(
+        env_file="db.env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+
+class ProcessParameters(BaseSettings):
+    page_size: int = Field(alias="PAGE_SIZE")
+    sqlite_path: str = Field(alias="SQLITE_PATH")
+
+    model_config = SettingsConfigDict(
+        env_file="db.env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+
+process_parameters = ProcessParameters()
+
+logger = logging.getLogger(__name__)
 
 
 TABLE_DATACLASS_DICT = {
@@ -31,17 +63,22 @@ TABLE_DATACLASS_DICT = {
     "person_film_work": PersonFilmWork,
 }
 
-PAGE_SIZE = int(os.environ.get("PAGE_SIZE"))
-
 
 def load_one_table(connection: sqlite3.Connection, pg_conn: _connection, table_name):
-    postgres_saver = PGSaver(pg_conn, schema="content", page_size=PAGE_SIZE)
-    sqlite_extractor = SQLiteExtractor(connection, page_size=PAGE_SIZE)
+    postgres_saver = PGSaver(
+        pg_conn,
+        schema="content",
+        page_size=process_parameters.page_size,
+    )
+    sqlite_extractor = SQLiteExtractor(
+        connection,
+        page_size=process_parameters.page_size,
+    )
     columns = ", ".join(TABLE_DATACLASS_DICT[table_name].__dataclass_fields__.keys())
     for data in sqlite_extractor.get_sqlite_data(
         table_name=table_name,
         columns=columns,
-        page_size=PAGE_SIZE,
+        page_size=process_parameters.page_size,
     ):
         dataclass_object = [
             TABLE_DATACLASS_DICT[table_name](*data_object) for data_object in data
@@ -58,19 +95,15 @@ def load_from_sqlite(connection: sqlite3.Connection, pg_conn: _connection):
 
 
 if __name__ == "__main__":
-    dsl = {
-        "dbname": os.environ.get("POSTGRES_DB"),
-        "user": os.environ.get("POSTGRES_USER"),
-        "password": os.environ.get("POSTGRES_PASSWORD"),
-        "host": os.environ.get("POSTGRES_LOCAL_HOST", "127.0.0.1"),
-        "port": os.environ.get("POSTGRES_PORT", 5432),
-    }
+    logger.info(msg="Transfer process started")
+    dsn = PostgresConnectParameters
     # Теперь с контекстным менеджером
     with SQLiteExtractor(
-        sqlite3.connect(os.environ.get("SQLITE_PATH")),
-        page_size=PAGE_SIZE,
+        sqlite3.connect(process_parameters.sqlite_path),
+        page_size=process_parameters.page_size,
     ).conn_context() as sqlite_conn, psycopg2.connect(
-        **dsl,
+        **dsn().model_dump(),
         cursor_factory=NamedTupleCursor,
     ) as pg_conn:
         load_from_sqlite(sqlite_conn, pg_conn)
+        logger.info(msg="Transfer progress ended")
