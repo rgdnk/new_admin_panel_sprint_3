@@ -127,9 +127,9 @@ services:
   create_es_index:
     container_name: create_es_index
     image: appropriate/curl
-    command: "curl -XPUT http://localhost:9200/movies -H 'Content-Type: application/json' -d @/movies.json"
+    command: "curl -XPUT http://elastic:9200/movies -H 'Content-Type: application/json' -d @/movies.json"
     volumes:
-      - "/postgres_to_es/indexes/movies.json:/movies.json"
+      - "./postgres_to_es/indexes/movies.json:/movies.json"
     depends_on:
       elastic:
         condition: service_healthy
