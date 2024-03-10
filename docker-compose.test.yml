@@ -4,7 +4,7 @@ services:
     image: postgres:16
     container_name: db
     volumes:
-      - "/home/rg/postgresql/moviedb:/var/lib/postgresql/data/"
+      - "postgres_data:/var/lib/postgresql/data/"
       - "./postgresql.conf:/var/lib/data/postgresql.conf"
     env_file:
       - db.env
