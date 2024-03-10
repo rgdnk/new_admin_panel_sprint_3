@@ -1,4 +1,4 @@
-.PHONY: up-test up-prod down-test down-prod swagger-run swagger-stop swagger-delete add-data test-logs
+.PHONY: up-test up-prod down-test down-prod swagger-run swagger-stop swagger-delete add-data test-logs redis es
 
 up-test:
 	docker-compose -f docker-compose.test.yml up --build -d

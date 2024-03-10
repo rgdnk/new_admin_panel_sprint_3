@@ -51,3 +51,13 @@ WORKDIR /opt/app
 FROM nginx:1.25.4 AS front
 
 COPY --from=app /opt/app/staticfiles /data/static
+
+FROM python-base-updater as etl
+WORKDIR /postgres_to_es
+
+RUN groupadd -r docker && useradd -d /postgres_to_es -r -G docker es_user  \
+    && chown -R es_user:es_user /postgres_to_es && chmod 777 /postgres_to_es -R
+
+USER es_user
+
+COPY --chown=es_user:es_user ./postgres_to_es /postgres_to_es

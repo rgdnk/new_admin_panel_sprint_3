@@ -4,3 +4,4 @@
 venv
 docker_compose/*
 elastic*
+.vscode
