@@ -1,0 +1,136 @@
+version: '3'
+services:
+  db:
+    image: postgres:16
+    container_name: db
+    volumes:
+      - "/home/rg/postgresql/moviedb:/var/lib/postgresql/data/"
+      - "./postgresql.conf:/var/lib/data/postgresql.conf"
+    env_file:
+      - db.env
+    ports:
+      - "5432:5432"
+    environment:
+      - PGUSER=app
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready" ]
+      interval: 5s
+      timeout: 60s
+      retries: 5
+  
+  backend:
+    image: gunicorn
+    container_name: backend
+    build:
+      context: .
+      dockerfile: movies_admin/Dockerfile
+      target: django-api
+    command: ["gunicorn", "-c", "gunicorn.conf.py"]
+    env_file:
+      - backend.env
+    restart: always
+    volumes:
+      - "media:/opt/app/media"
+      - "./gunicorn.conf.py:/opt/app/gunicorn.conf.py"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  nginx:
+    image: nginx
+    container_name: nginx
+    build:
+      context: .
+      dockerfile: movies_admin/Dockerfile
+      target: front
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - 8080:80
+    links:
+      - backend
+    volumes:
+      - "./nginx.conf:/etc/nginx/nginx.conf:ro"
+      - "./configs:/etc/nginx/conf.d:ro"
+  
+  elastic:
+    container_name: elastic
+    image: elasticsearch:8.12.2
+    environment:
+      - "discovery.type=single-node"
+      - "xpack.security.enabled=false"
+      - "ES_JAVA_OPTS=-Xms2g -Xmx4g"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+        test: ["CMD-SHELL", "curl --silent --fail http://elastic:9200/_cluster/health || exit 1"]
+        interval: 15s
+        timeout: 10s
+        retries: 5
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - "elasticsearch-data:/usr/share/elasticsearch/data"
+
+  etl:
+    container_name: etl
+    build:
+      context: .
+      dockerfile: movies_admin/Dockerfile
+      target: etl
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elastic:
+        condition: service_healthy
+    command: "python3 main.py"
+    env_file:
+      - etl.env
+
+  kibana:
+    container_name: kibana
+    image: kibana:8.12.2
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elastic:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elastic
+  
+  redis:
+    container_name: redis
+    image: redis:7.2.4
+    restart: always
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    volumes:
+      - "redisinfo:/data"
+    ports:
+      - "6379:6379"
+
+  create_es_index:
+    container_name: create_es_index
+    image: appropriate/curl
+    command: "curl -XPUT http://localhost:9200/movies -H 'Content-Type: application/json' -d @/movies.json"
+    volumes:
+      - "/postgres_to_es/indexes/movies.json:/movies.json"
+    depends_on:
+      elastic:
+        condition: service_healthy
+
+
+volumes:
+  media:
+  postgres_data:
+  elasticsearch-data:
+  redisinfo:
