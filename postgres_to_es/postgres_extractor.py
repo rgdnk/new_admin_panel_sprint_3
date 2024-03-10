@@ -1,5 +1,6 @@
 # Standard Library
 import logging
+from contextlib import closing
 from typing import (
     Iterator,
     Tuple,
@@ -49,16 +50,18 @@ class PGExtractor:
         query: str,
         itersize: int,
     ) -> Iterator[Tuple[dict, str]]:
-        with psycopg2.connect(
-            **self._dsn().model_dump(),
-            cursor_factory=DictCursor,
-        ) as conn:
-            cur = conn.cursor()
-            cur.itersize = itersize
-            cur.execute(query)
-            data = cur.fetchall()
-            logger.info("About to extract data from Postgres")
-        for row in data:
-            instance = model(**row).model_dump()
-            instance["_id"] = instance["id"]
-            yield instance, str(row["modified"])
+        with closing(
+            psycopg2.connect(
+                **self._dsn().model_dump(),
+                cursor_factory=DictCursor,
+            )  # noqa
+        ) as conn:  # noqa
+            with conn.cursor() as cur:
+                cur.itersize = itersize
+                cur.execute(query)
+                data = cur.fetchall()
+                logger.info("About to extract data from Postgres")
+            for row in data:
+                instance = model(**row).model_dump()
+                instance["_id"] = instance["id"]
+                yield instance, str(row["modified"])
