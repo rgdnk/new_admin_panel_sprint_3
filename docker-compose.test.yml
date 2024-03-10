@@ -133,6 +133,25 @@ services:
     depends_on:
       elastic:
         condition: service_healthy
+  
+  load_data_to_postgres:
+    container_name: load_data_to_postgres
+    build:
+      context: .
+      dockerfile: movies_admin/Dockerfile
+      target: preload-data-to-pg
+    command: "python3 load_data.py"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elastic:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    env_file:
+      - db.env
 
 
 volumes:

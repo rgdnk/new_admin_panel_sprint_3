@@ -14,6 +14,19 @@ class PGSaver:
         self.schema = schema
         self.page_size = page_size
 
+    def create_schema(self, schema) -> bool:
+        query = SQL(
+            f"CREATE SCHEMA {schema} IF NOT EXISTS content",
+        )
+        with self.connection.cursor(
+            cursor_factory=psycopg2.extras.NamedTupleCursor,
+        ) as cur:
+            try:
+                cur.execute(query)
+                return True
+            except psycopg2.Error:
+                return False
+
     def save_all_data(self, table_name, data, column_names):
         cursor = self.connection.cursor(cursor_factory=psycopg2.extras.NamedTupleCursor)
 
@@ -22,11 +35,17 @@ class PGSaver:
             f"INSERT INTO {self.schema}.{table_name} ({column_names}) values %s "
             f"ON CONFLICT (id) DO NOTHING",
         )
-        try:
-            execute_values(cursor, query, values_to_insert, page_size=self.page_size)
-            self.connection.commit()
-        except psycopg2.Error:
-            self.connection.rollback()
-            raise Exception(
-                f"Error while inserting into table {table_name}, don't forget to use logger next time",
-            )
+        if self.create_schema(self.schema):
+            try:
+                execute_values(
+                    cursor,
+                    query,
+                    values_to_insert,
+                    page_size=self.page_size,
+                )
+                self.connection.commit()
+            except psycopg2.Error:
+                self.connection.rollback()
+                raise Exception(
+                    f"Error while inserting into table {table_name}, don't forget to use logger next time",
+                )

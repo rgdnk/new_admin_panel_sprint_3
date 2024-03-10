@@ -61,3 +61,13 @@ RUN groupadd -r docker && useradd -d /postgres_to_es -r -G docker es_user  \
 USER es_user
 
 COPY --chown=es_user:es_user ./postgres_to_es /postgres_to_es
+
+FROM python-base-updater as preload-data-to-pg
+WORKDIR /sqlite_to_postgres
+
+RUN groupadd -r docker && useradd -d /sqlite_to_postgres -r -G docker preload_user  \
+    && chown -R preload_user:preload_user /sqlite_to_postgres && chmod 777 /sqlite_to_postgres -R
+
+USER preload_user
+
+COPY --chown=preload_user:preload_user ./sqlite_to_postgres /sqlite_to_postgres
