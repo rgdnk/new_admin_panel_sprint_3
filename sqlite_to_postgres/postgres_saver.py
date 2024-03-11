@@ -16,7 +16,7 @@ class PGSaver:
 
     def create_schema(self, schema) -> bool:
         query = SQL(
-            f"CREATE SCHEMA {schema} IF NOT EXISTS content",
+            f"CREATE SCHEMA IF NOT EXISTS {schema}",
         )
         with self.connection.cursor(
             cursor_factory=psycopg2.extras.NamedTupleCursor,
