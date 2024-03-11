@@ -1,4 +1,4 @@
-.PHONY: up-test up-prod down-test down-prod swagger-run swagger-stop swagger-delete add-data test-logs redis es
+.PHONY: up-test up-prod down-test down-prod swagger-run swagger-stop swagger-delete add-data test-logs django-createsuperuser
 
 up-test:
 	docker-compose -f docker-compose.test.yml up --build -d
@@ -26,3 +26,6 @@ add-data:
 
 test-logs:
 	docker-compose -f docker-compose.test.yml logs
+
+django-createsuperuser:
+	docker-compose -f docker-compose.test.yml exec -it backend python3 manage.py createsuperuser --noinput
